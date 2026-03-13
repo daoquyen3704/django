@@ -1,18 +1,31 @@
+"""
+URL configuration cho Blog app.
+
+Sử dụng DefaultRouter để auto-generate standard REST endpoints.
+"""
 from django.urls import path
-# from . import views
-from .views import BlogViewSet
 from rest_framework.routers import DefaultRouter
 
+from .views import BlogViewSet
 
-router = DefaultRouter()
+
+app_name = 'blogs'
+
+# Setup router
+router = DefaultRouter(trailing_slash=True)
 router.register(r'blogs', BlogViewSet, basename='blog')
 
-# urlpatterns = [
-#     path('create/', views.create_blog, name='create_blog'),
-#     path('post/<int:pk>/',views.get_a_post, name='get_a_blog'),
-#     path('posts/', views.get_posts, name='get_blogs'),
-#     path('update/<int:pk>/', views.update_post, name='update_blogs'),
-#     path('delete/<int:pk>/', views.delete_post, name="delete_blog")
-# ]
-
+# URL patterns
+# Router sẽ tự động generate các endpoints:
+# - GET    /blogs/              -> list
+# - POST   /blogs/              -> create
+# - GET    /blogs/{id}/         -> retrieve
+# - PUT    /blogs/{id}/         -> update
+# - PATCH  /blogs/{id}/         -> partial_update
+# - DELETE /blogs/{id}/         -> destroy
+# - POST   /blogs/{id}/publish/ -> publish (custom action)
+# - POST   /blogs/{id}/unpublish/ -> unpublish (custom action)
+# - GET    /blogs/my_blogs/     -> my_blogs (custom action)
+# - GET    /blogs/published/    -> published (custom action)
 urlpatterns = router.urls
+

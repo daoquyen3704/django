@@ -39,11 +39,16 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts",
     "blogs",
+    "comments",
+    "storage",
     "rest_framework",
     'django_extensions',
+    'corsheaders',
+    "debug_toolbar",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # Phải đặt TRÊN CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -51,6 +56,13 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
+]
+
+# CORS: cho phép frontend Next.js gọi API
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -123,6 +135,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = '/img/' # đường dẫn truy cập ảnh tải lên
 MEDIA_ROOT = BASE_DIR / 'media' # thư mục lưu trữ ảnh tải lên
 AUTH_USER_MODEL = "accounts.CustomUser"
@@ -139,3 +152,14 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
+MINIO_ENDPOINT = "http://localhost:9000"     # nếu Django chạy trong Docker: "http://minio:9000"
+MINIO_ACCESS_KEY = "minioadmin"
+MINIO_SECRET_KEY = "minioadmin123"
+MINIO_BUCKET = "uploads"
+MINIO_REGION = "us-east-1"
+
+INTERNAL_IPS = [
+    "127.0.0.1",
+    # ... other IPs if using Docker or a specific network
+]

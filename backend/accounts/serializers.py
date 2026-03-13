@@ -18,9 +18,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'bio', 'facebook', 'youtube', 'instagram', 'profile_picture')
+        fields = ('email', 'first_name', 'last_name', 'bio', 'facebook', 'youtube', 'instagram', 'profile_picture')
         read_only_fields = ('id', 'username', 'email') # chỉ cho phép đọc các trường này, không được sửa đổi
-
+    
 
 
 class ChangePasswordSerializer(serializers.Serializer):

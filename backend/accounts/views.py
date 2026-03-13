@@ -15,6 +15,7 @@ def register_user(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+
 def get_user_profile(request):
     user = request.user
     serializer = UserProfileSerializer(user)
