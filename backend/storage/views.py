@@ -38,13 +38,10 @@ ALLOWED_EXTENSIONS: dict[str, tuple[str, str, list[str]]] = {
     "txt": ("txt", "docs", ["text/plain"]),
     "csv": ("csv", "docs", ["text/csv"]),
     "json": ("json", "docs", ["application/json"]),
+    # "xml": ("xml", "docs", ["application/xml", "text/xml"]),
 }
 
 def validate_file_type(content_type: str, filename: str = None) -> tuple[str, str] | None:
-    """
-    Validate content_type, with fallback to filename extension.
-    Returns (ext, folder) or None if invalid.
-    """
     # Fallback: kiểm tra dựa vào extension
     if filename:
         ext = os.path.splitext(filename)[1].lstrip('.').lower()
@@ -63,14 +60,14 @@ def validate_file_type(content_type: str, filename: str = None) -> tuple[str, st
 class PresignPutImageView(APIView):
     def post(self, request):
         #Lấy content_type
-        content_type = request.data.get("content_type", "application/octet-stream")
+        content_type = request.data.get("Content-type", "application/octet-stream")
         filename = request.data.get("filename", "")
         
         result = validate_file_type(content_type, filename)
         if not result:
             return Response(
                 {
-                    "detail": f"Loại file không hợp lệ. Content-Type: {content_type}",
+                    "detail": f"Loại file không hợp lệ.",
                     "allowed_extensions": list(ALLOWED_EXTENSIONS.keys()),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -111,7 +108,7 @@ class PresignGetImageView(APIView):
         if not result:
             return Response(
                 {
-                    "detail": f"Loại file không hợp lệ. Content-Type: {content_type}",
+                    "detail": f"Loại file không hợp lệ.",
                     "allowed_extensions": list(ALLOWED_EXTENSIONS.keys()),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -143,14 +140,12 @@ class ConfirmUploadedView(APIView):
         asset_id = request.data.get("id")
         if not asset_id:
             return Response({"detail": "Thiếu asset_id"}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
             asset = ImageAsset.objects.get(pk=asset_id)
         except ImageAsset.DoesNotExist:
             return Response({"detail": "Asset không tồn tại"}, status=status.HTTP_400_BAD_REQUEST)
 
         client = get_s3_client()
-
         try:
             head = client.head_object(
                 Bucket=settings.MINIO_BUCKET,
@@ -169,16 +164,13 @@ class ConfirmUploadedView(APIView):
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
             
 
-# MULTIPART UPLOAD
 # Luồng:
-#   1. POST /multipart/create/   → uploadId + key
-#   2. POST /multipart/presign-part/ (x N lần) → presigned PUT URL cho từng part
-#   3. Frontend PUT từng part thẳng lên MinIO → thu thập ETag
-#   4. POST /multipart/complete/ → MinIO ghép các part lại
+# 1. POST /multipart/create/   → uploadId + key
+# 2. POST /multipart/presign-part/ (x N lần) → presigned PUT URL cho từng part
+# 3. Frontend PUT từng part thẳng lên MinIO → thu thập ETag
+# 4. POST /multipart/complete/ → MinIO ghép các part lại
 
 class MultipartCreateView(APIView):
-    #POST body: { "content_type": "video/mp4", "filename": "myvideo.mp4" }
-    #Response:  { "upload_id": "...", "key": "videos/<uuid>.mp4" }
     def post(self, request):
         content_type = request.data.get("content_type", "application/octet-stream")
         filename = request.data.get("filename", "")
@@ -187,7 +179,7 @@ class MultipartCreateView(APIView):
         if not result:
             return Response(
                 {
-                    "detail": f"Loại file không hợp lệ. Content-Type: {content_type}",
+                    "detail": f"Loại file không hợp lệ.",
                     "allowed_extensions": list(ALLOWED_EXTENSIONS.keys()),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -202,12 +194,11 @@ class MultipartCreateView(APIView):
             Key=key,
             ContentType=content_type,
         )
-        upload_id = resp["UploadId"] # ID do MinIO tạo ra để nhận diện multipart upload này. Frontend sẽ cần upload_id này để upload từng part và để complete sau này.
+        upload_id = resp["UploadId"] # ID do MinIO tạo ra để nhận diện multipart upload này
 
         # Lưu asset với size=0, sẽ update sau khi complete
         asset = ImageAsset.objects.create(key=key, content_type=content_type, size=0)
-        # asset_id để làm gì? Để frontend có thể liên kết multipart upload với asset trong database. Khi complete multipart upload,
-        # frontend sẽ gửi asset_id để backend biết update record nào với size thực tế sau khi upload xong.
+        
         return Response(
             {"upload_id": upload_id, "key": key, "asset_id": asset.id},
             status=status.HTTP_200_OK,
@@ -215,9 +206,6 @@ class MultipartCreateView(APIView):
 
 
 class MultipartPresignPartView(APIView):
-    #POST body: { "key": "...", "upload_id": "...", "part_number": 1 }
-    #Response:  { "url": "<presigned PUT URL>" }
-    #Part number bắt đầu từ 1, tối đa 10000.
     def post(self, request):
         key = request.data.get("key")
         upload_id = request.data.get("upload_id")
@@ -248,19 +236,11 @@ class MultipartPresignPartView(APIView):
 
 
 class MultipartCompleteView(APIView):
-    #POST body:
-    #"asset_id": 1,
-    #"key": "videos/<uuid>.mp4",
-    #"upload_id": "...",
-    #"parts": [
-    #{ "part_number": 1, "etag": "\"abc123\"" },
-    #{ "part_number": 2, "etag": "\"def456\"" }
-    #]
     def post(self, request):
         asset_id  = request.data.get("asset_id")
-        key       = request.data.get("key")
+        key = request.data.get("key")
         upload_id = request.data.get("upload_id")
-        parts     = request.data.get("parts", [])
+        parts = request.data.get("parts", [])
 
         if not all([asset_id, key, upload_id, parts]):
             return Response({"detail": "Thiếu asset_id, key, upload_id hoặc parts"}, status=status.HTTP_400_BAD_REQUEST)
@@ -284,7 +264,7 @@ class MultipartCompleteView(APIView):
         # Cập nhật size thực từ MinIO
         try:
             asset = ImageAsset.objects.get(pk=asset_id)
-            head  = client.head_object(Bucket=settings.MINIO_BUCKET, Key=key)
+            head = client.head_object(Bucket=settings.MINIO_BUCKET, Key=key)
             asset.size = int(head.get("ContentLength") or 0)
             asset.save(update_fields=["size"])
         except ImageAsset.DoesNotExist:
@@ -297,10 +277,8 @@ class MultipartCompleteView(APIView):
 
 
 class MultipartAbortView(APIView):
-    #POST body: { "key": "...", "upload_id": "..." }
-    #Hủy multipart upload đang dở (giải phóng storage trên MinIO).
     def post(self, request):
-        key       = request.data.get("key")
+        key = request.data.get("key")
         upload_id = request.data.get("upload_id")
         if not all([key, upload_id]):
             return Response({"detail": "Thiếu key hoặc upload_id"}, status=status.HTTP_400_BAD_REQUEST)
